@@ -113,7 +113,7 @@ fun ProfileScreen(container: AppContainer) {
                             Text(
                                 when (p) {
                                     AiProvider.GEMINI -> "Watches whole videos and listens to audio."
-                                    AiProvider.CLAUDE -> "Strong at text and recipe pages. Cannot watch YouTube videos."
+                                    AiProvider.CLAUDE -> "Strong at text, photos and screenshots. Videos are read as still frames, no audio."
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -159,8 +159,8 @@ fun ProfileScreen(container: AppContainer) {
                 Text("CookLink AI ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Built in phases. Ready now: library, collections, favourites, editor, shopping list, AI import from links and text. " +
-                        "Next: photos and video (3), recipe generation (4), cooking mode (5), AI chef (6).",
+                    "Built in phases. Ready now: library, collections, favourites, editor, shopping list, AI import from links, text, photos, screenshots and phone videos (alone or combined). " +
+                        "Next: smarter recipe generation (4), cooking mode (5), AI chef (6).",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

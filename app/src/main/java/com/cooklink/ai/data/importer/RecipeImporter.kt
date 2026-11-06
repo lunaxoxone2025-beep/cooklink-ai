@@ -4,6 +4,7 @@ import com.cooklink.ai.data.ImageStore
 import com.cooklink.ai.data.RecipeRepository
 import com.cooklink.ai.data.ai.AiClient
 import com.cooklink.ai.data.ai.AiException
+import com.cooklink.ai.data.ai.AiMedia
 import com.cooklink.ai.data.ai.ClaudeClient
 import com.cooklink.ai.data.ai.GeminiClient
 import com.cooklink.ai.data.ai.RecipeExtraction
@@ -18,6 +19,9 @@ import okhttp3.OkHttpClient
 /** Progress stages shown on the import screen. */
 enum class ImportStage(val label: String) {
     READING_LINK("Reading the link…"),
+    PREPARING_MEDIA("Preparing photos and video…"),
+    UPLOADING_VIDEO("Uploading the video…"),
+    ANALYZING_MEDIA("Analysing photos and video… (can take a minute)"),
     WATCHING_VIDEO("Watching the video… (can take a minute)"),
     READING_TEXT("Reading the content…"),
     SAVING("Saving the recipe…"),
@@ -26,15 +30,16 @@ enum class ImportStage(val label: String) {
 data class ImportResult(val recipeId: Long, val notice: String?)
 
 /**
- * Turns links and text into saved recipes with the configured AI provider.
- * Everything that reaches the AI is either public metadata or text the user typed.
+ * Turns links, text, photos and videos into saved recipes with the configured AI provider.
+ * Everything that reaches the AI is public metadata or material the user chose to share.
  */
 class RecipeImporter(
     private val http: OkHttpClient,
     private val keys: SecureKeyStore,
     private val settings: SettingsRepository,
     private val recipes: RecipeRepository,
-    private val images: ImageStore,
+    private val imagesStore: ImageStore,
+    private val media: MediaPrep,
 ) {
     private val fetcher = LinkFetcher(http)
 
@@ -73,16 +78,16 @@ class RecipeImporter(
         }
 
         onStage(if (watchVideo) ImportStage.WATCHING_VIDEO else ImportStage.READING_TEXT)
-        val reply = client.generate(systemPrompt(), material, if (watchVideo) link.youtubeUrl else null)
+        val reply = client.generate(systemPrompt(), material, AiMedia(youtubeUrl = if (watchVideo) link.youtubeUrl else null))
         val ai = RecipeExtraction.parse(reply)
 
         onStage(ImportStage.SAVING)
-        val cover = images.downloadCover(http, link.imageUrl)
+        val cover = imagesStore.downloadCover(http, link.imageUrl)
         val sourceLabel = listOfNotNull(link.platform.label, link.author).joinToString(" · ")
         val recipe = try {
             RecipeExtraction.toRecipe(ai, Origin.URL, listOf(SourceLink(sourceLabel, link.url)), cover)
         } catch (e: AiException) {
-            images.deleteCover(cover)
+            imagesStore.deleteCover(cover)
             throw e
         }
         return ImportResult(recipes.save(recipe), notice)
@@ -106,6 +111,125 @@ class RecipeImporter(
         onStage(ImportStage.SAVING)
         val recipe = RecipeExtraction.toRecipe(ai, Origin.TEXT, emptyList(), null)
         return ImportResult(recipes.save(recipe), null)
+    }
+
+    /**
+     * Photos, screenshots, a video from the phone, notes and/or a link, combined into one recipe.
+     * Gemini watches the video with its audio; Claude gets evenly sampled frames instead.
+     */
+    suspend fun importMedia(
+        images: List<android.net.Uri>,
+        video: VideoInfo?,
+        notes: String,
+        linkUrl: String?,
+        onStage: (ImportStage) -> Unit,
+        onProgress: (Float) -> Unit,
+    ): ImportResult {
+        if (images.isEmpty() && video == null && notes.isBlank() && linkUrl == null) {
+            throw AiException("Add at least one photo, a video, a link or some notes.")
+        }
+        if (images.size > MediaPrep.MAX_IMAGES) throw AiException("Use at most ${MediaPrep.MAX_IMAGES} images per recipe.")
+        video?.let { media.checkVideo(it) }
+
+        val client = preferredClient()
+        var notice: String? = null
+        var tempVideo: java.io.File? = null
+        var uploaded: com.cooklink.ai.data.ai.UploadedFile? = null
+        var cover: String? = null
+
+        try {
+            // Optional link: read its public text first so it can be cross-referenced.
+            val link = linkUrl?.let {
+                onStage(ImportStage.READING_LINK)
+                fetcher.fetch(it)
+            }
+
+            onStage(ImportStage.PREPARING_MEDIA)
+            val encoded = images.map { media.encodeImage(it) }
+            var frames: List<Pair<Int, com.cooklink.ai.data.ai.EncodedImage>> = emptyList()
+
+            if (video != null) {
+                if (client is GeminiClient) {
+                    val copy = media.copyVideo(video)
+                    tempVideo = copy
+                    onStage(ImportStage.UPLOADING_VIDEO)
+                    uploaded = client.uploadFile(copy, video.mimeType.substringBefore(';'), onProgress)
+                    media.deleteTemp(copy)
+                    tempVideo = null
+                } else {
+                    frames = media.sampleFrames(video.uri)
+                    notice = "Claude can't hear audio, so the video was read from ${frames.size} still frames. " +
+                        "Spoken amounts were not captured — check items marked as estimates, or use Gemini for videos."
+                }
+            }
+
+            // Cover: first photo, else a frame of the video, else the link's image.
+            cover = images.firstOrNull()?.let { imagesStore.importCover(it) }
+                ?: video?.let { media.videoCover(it.uri, imagesStore.coversDir) }
+                ?: link?.imageUrl?.let { imagesStore.downloadCover(http, it) }
+
+            val watchYouTube = link?.youtubeUrl != null && client.canWatchYouTube
+            val material = buildString {
+                appendLine("Source type: material collected by the user for ONE recipe. Cross-reference all of it.")
+                appendLine("Prefer amounts that are written or spoken; when sources disagree, use the most explicit one and mention the other in the ingredient note.")
+                appendLine()
+                if (encoded.isNotEmpty()) {
+                    appendLine("${encoded.size} photo(s)/screenshot(s) are attached first, in the order the user picked them.")
+                    appendLine("Text visible in screenshots counts as confirmed. Amounts judged from how food looks are estimated.")
+                }
+                if (uploaded != null) {
+                    appendLine("A video from the user's phone is attached. Watch it and listen to the audio and any on-screen text or subtitles: spoken or written amounts are confirmed.")
+                }
+                if (frames.isNotEmpty()) {
+                    appendLine("The user's video is represented by ${frames.size} still frames taken at these seconds: ${frames.joinToString { "${it.first}s" }}.")
+                    appendLine("There is NO audio. Use on-screen text and visible actions; anything inferred between frames is estimated.")
+                }
+                if (link != null) {
+                    appendLine()
+                    append(buildLinkPrompt(link, watchYouTube))
+                }
+                if (notes.isNotBlank()) {
+                    appendLine()
+                    appendLine("Notes typed by the user (treat as confirmed):")
+                    appendLine("<user_notes>")
+                    appendLine(notes.trim().take(MAX_TEXT))
+                    appendLine("</user_notes>")
+                }
+            }
+
+            onStage(ImportStage.ANALYZING_MEDIA)
+            val reply = client.generate(
+                systemPrompt(),
+                material,
+                AiMedia(
+                    images = encoded + frames.map { it.second },
+                    youtubeUrl = if (watchYouTube) link?.youtubeUrl else null,
+                    geminiFile = uploaded,
+                ),
+            )
+            val ai = RecipeExtraction.parse(reply)
+
+            onStage(ImportStage.SAVING)
+            val kinds = listOf(images.isNotEmpty(), video != null, notes.isNotBlank() || link != null).count { it }
+            val origin = when {
+                kinds > 1 -> Origin.COMBINED
+                video != null -> Origin.VIDEO
+                images.isNotEmpty() -> Origin.IMAGE
+                link != null -> Origin.URL
+                else -> Origin.TEXT
+            }
+            val sources = link?.let {
+                listOf(SourceLink(listOfNotNull(it.platform.label, it.author).joinToString(" · "), it.url))
+            }.orEmpty()
+            val recipe = RecipeExtraction.toRecipe(ai, origin, sources, cover)
+            val id = recipes.save(recipe)
+            cover = null // now owned by the recipe
+            return ImportResult(id, notice)
+        } finally {
+            media.deleteTemp(tempVideo)
+            uploaded?.let { (client as? GeminiClient)?.deleteFile(it) }
+            cover?.let { imagesStore.deleteCover(it) }
+        }
     }
 
     private fun buildLinkPrompt(link: LinkContent, watchVideo: Boolean) = buildString {

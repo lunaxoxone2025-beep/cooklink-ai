@@ -8,6 +8,7 @@ import com.cooklink.ai.data.db.AppDatabase
 import com.cooklink.ai.data.settings.SecureKeyStore
 import com.cooklink.ai.data.settings.SettingsRepository
 import com.cooklink.ai.data.importer.ImportController
+import com.cooklink.ai.data.importer.MediaPrep
 import com.cooklink.ai.data.importer.RecipeImporter
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
@@ -29,7 +30,7 @@ class AppContainer(app: Application) {
         .callTimeout(300, TimeUnit.SECONDS)
         .build()
 
-    val importer = RecipeImporter(http, keys, settings, recipes, images)
+    val importer = RecipeImporter(http, keys, settings, recipes, images, MediaPrep(app))
     val imports = ImportController(importer)
 }
 

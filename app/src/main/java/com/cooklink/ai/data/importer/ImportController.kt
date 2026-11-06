@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 
 sealed interface ImportState {
     data object Idle : ImportState
-    data class Running(val stage: ImportStage, val what: String) : ImportState
+    data class Running(val stage: ImportStage, val what: String, val progress: Float? = null) : ImportState
     data class Done(val recipeId: Long, val notice: String?, val opened: Boolean = false) : ImportState
     data class Failed(val message: String) : ImportState
 }
@@ -33,6 +33,14 @@ class ImportController(private val importer: RecipeImporter) {
     fun importLink(url: String) = start("link") { importer.importLink(url) { stage -> _state.value = ImportState.Running(stage, "link") } }
 
     fun importText(text: String) = start("text") { importer.importText(text) { stage -> _state.value = ImportState.Running(stage, "text") } }
+
+    fun importMedia(images: List<android.net.Uri>, video: VideoInfo?, notes: String, link: String?) = start("media") {
+        importer.importMedia(
+            images, video, notes, link,
+            onStage = { stage -> _state.value = ImportState.Running(stage, "media") },
+            onProgress = { p -> _state.value = ImportState.Running(ImportStage.UPLOADING_VIDEO, "media", p) },
+        )
+    }
 
     fun cancel() {
         job?.cancel()

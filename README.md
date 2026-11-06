@@ -2,17 +2,25 @@
 
 Android app that turns cooking videos, links, photos and notes into structured recipes. Kotlin + Jetpack Compose, Material 3, Room, DataStore.
 
-## Status: Phase 2 of 7
+## Status: Phase 3 of 7
 
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | UI, navigation, recipe storage | **Done** |
 | 2 | URL and text import (AI) | **Done** |
-| 3 | Image and video analysis | Next |
-| 4 | AI recipe generation, confidence indicators | — |
+| 3 | Image and video analysis | **Done** |
+| 4 | AI recipe generation, confidence indicators | Next |
 | 5 | Interactive cooking mode | — |
 | 6 | Personal AI chef, smart shopping | — |
 | 7 | Testing, optimisation, release APK | — |
+
+### What's new in Phase 3
+
+- **Photos & screenshots**: up to 10 images per recipe, downscaled on the phone before sending.
+- **Video from your phone** (up to 500 MB / 30 min): Gemini receives the whole video through the Files API (resumable upload with a progress bar) and watches the images, audio, on-screen text and subtitles; the uploaded file is deleted right after. With Claude, 16 evenly spaced frames are sent instead and the app says that audio was not used.
+- **Combined input**: photos + video + notes + the link in one request; the AI cross-references them and prefers written/spoken amounts.
+- Share photos or a video from the gallery straight into CookLink AI.
+- Cover image taken from the first photo or a frame of the video.
 
 ### What's new in Phase 2
 

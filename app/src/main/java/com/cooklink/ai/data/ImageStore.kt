@@ -11,6 +11,9 @@ import java.util.UUID
 class ImageStore(private val context: Context) {
     private val dir get() = File(context.filesDir, "covers").apply { mkdirs() }
 
+    /** Folder where cover images live; other components may write new covers here. */
+    val coversDir: File get() = dir
+
     suspend fun importCover(source: Uri): String? = withContext(Dispatchers.IO) {
         runCatching {
             val target = File(dir, "${UUID.randomUUID()}.jpg")

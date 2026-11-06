@@ -25,12 +25,9 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Key
-import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Notes
-import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -70,6 +67,8 @@ fun ImportScreen(
     container: AppContainer,
     sharedText: String?,
     onSharedTextConsumed: () -> Unit,
+    sharedMedia: List<android.net.Uri>?,
+    onSharedMediaConsumed: () -> Unit,
     writeManually: () -> Unit,
     openRecipe: (Long) -> Unit,
     openProfile: () -> Unit,
@@ -86,6 +85,30 @@ fun ImportScreen(
     var text by rememberSaveable { mutableStateOf("") }
     var textOpen by rememberSaveable { mutableStateOf(false) }
 
+    // The new recipe is opened app-wide by CookLinkRoot; here we clear the inputs once per import.
+    // Declared before the share handler so a link shared right after an import isn't wiped.
+    val draft = rememberMediaDraft()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var lastHandled by rememberSaveable { mutableStateOf(-1L) }
+    LaunchedEffect(state) {
+        val s = state
+        if (s is ImportState.Done && s.recipeId != lastHandled) {
+            lastHandled = s.recipeId
+            link = ""
+            text = ""
+            textOpen = false
+            draft.clear()
+        }
+    }
+
+    // Photos/videos shared from the gallery or another app.
+    LaunchedEffect(sharedMedia) {
+        sharedMedia?.let {
+            draft.addShared(it, context.contentResolver)
+            onSharedMediaConsumed()
+        }
+    }
+
     // Shared links go in the link box; shared captions without a link go in the text box.
     LaunchedEffect(sharedText) {
         if (sharedText != null) {
@@ -100,14 +123,6 @@ fun ImportScreen(
         }
     }
 
-    // The new recipe is opened app-wide by CookLinkRoot; here we just clear the inputs.
-    LaunchedEffect(state) {
-        if (state is ImportState.Done) {
-            link = ""
-            text = ""
-            textOpen = false
-        }
-    }
 
     val url = extractUrl(link)
 
@@ -119,7 +134,7 @@ fun ImportScreen(
         item {
             Text("Import", style = MaterialTheme.typography.headlineLarge)
             Text(
-                "Tip: in YouTube, TikTok or Instagram tap Share → CookLink AI.",
+                "Tip: tap Share → CookLink AI in YouTube, TikTok, Instagram or your gallery.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -194,12 +209,16 @@ fun ImportScreen(
                     }
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "YouTube videos are watched by Gemini. TikTok, Instagram and Facebook only share the caption with apps.",
+                        "YouTube videos are watched by Gemini. TikTok, Instagram and Facebook only share the caption — for those, save the video or take screenshots and add them below.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
+        }
+
+        item {
+            MediaImportCard(container = container, draft = draft, busy = busy, hasAnyKey = hasAnyKey, linkUrl = url)
         }
 
         // Text
@@ -242,9 +261,7 @@ fun ImportScreen(
         }
 
         item { MethodCard(Icons.Outlined.EditNote, "Write it yourself", "Type a recipe with ingredients, steps and a photo.", enabled = !busy, onClick = writeManually) }
-        item { MethodCard(Icons.Outlined.Image, "Photos & screenshots", "Dish photos or screenshots of a recipe.", phase = 3) }
-        item { MethodCard(Icons.Outlined.Videocam, "Video from your phone", "Frames, speech and subtitles are analysed.", phase = 3) }
-        item { MethodCard(Icons.Outlined.Layers, "Combine sources", "Mix a video, screenshots and notes into one recipe.", phase = 3) }
+
     }
 }
 
@@ -260,7 +277,18 @@ private fun StatusCard(state: ImportState, onRetryDismiss: () -> Unit, onCancel:
                 CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp, color = MaterialTheme.colorScheme.onPrimaryContainer)
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(state.stage.label, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text(
+                        state.stage.label + (state.progress?.let { " ${(it * 100).toInt()}%" } ?: ""),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                    state.progress?.let {
+                        androidx.compose.material3.LinearProgressIndicator(
+                            progress = { it },
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
                     Text(
                         "You can leave this screen; the recipe opens when it's ready.",
                         style = MaterialTheme.typography.bodySmall,

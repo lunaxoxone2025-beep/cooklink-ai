@@ -80,16 +80,23 @@ private val tabs = listOf(
 )
 
 @Composable
-fun CookLinkRoot(container: AppContainer, sharedText: StateFlow<String?>, onSharedTextConsumed: () -> Unit) {
+fun CookLinkRoot(
+    container: AppContainer,
+    sharedText: StateFlow<String?>,
+    onSharedTextConsumed: () -> Unit,
+    sharedMedia: StateFlow<List<android.net.Uri>?>,
+    onSharedMediaConsumed: () -> Unit,
+) {
     val nav = rememberNavController()
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
     val showBar = tabs.any { it.route == route }
     val shared by sharedText.collectAsState()
+    val media by sharedMedia.collectAsState()
 
-    // A link shared from another app jumps straight to Import.
-    LaunchedEffect(shared) {
-        if (shared != null) nav.switchTab(Routes.IMPORT)
+    // Anything shared from another app jumps straight to Import.
+    LaunchedEffect(shared, media) {
+        if (shared != null || media != null) nav.switchTab(Routes.IMPORT)
     }
 
     // When an AI import finishes, open the new recipe wherever the user is in the app.
@@ -140,6 +147,8 @@ fun CookLinkRoot(container: AppContainer, sharedText: StateFlow<String?>, onShar
                     container = container,
                     sharedText = shared,
                     onSharedTextConsumed = onSharedTextConsumed,
+                    sharedMedia = media,
+                    onSharedMediaConsumed = onSharedMediaConsumed,
                     writeManually = { nav.navigate(Routes.edit()) },
                     openRecipe = { nav.navigate(Routes.detail(it)) },
                     openProfile = { nav.switchTab(Routes.PROFILE) },
