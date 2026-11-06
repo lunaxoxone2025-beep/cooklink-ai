@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.ShoppingBasket
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -61,6 +63,7 @@ fun ShoppingScreen(container: AppContainer) {
     var input by rememberSaveable { mutableStateOf("") }
     var menu by remember { mutableStateOf(false) }
     var confirmClearAll by remember { mutableStateOf(false) }
+    var showPlanner by remember { mutableStateOf(false) }
 
     val open = remember(items) { items.filter { !it.checked }.groupBy { it.category }.toSortedMap(String.CASE_INSENSITIVE_ORDER) }
     val done = remember(items) { items.filter { it.checked } }
@@ -107,6 +110,14 @@ fun ShoppingScreen(container: AppContainer) {
             Spacer(Modifier.width(8.dp))
             FilledIconButton(onClick = { add() }, enabled = input.isNotBlank()) { Icon(Icons.Filled.Add, contentDescription = "Add item") }
         }
+        androidx.compose.material3.OutlinedButton(
+            onClick = { showPlanner = true },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+        ) {
+            Icon(Icons.Outlined.MenuBook, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Add ingredients from recipes")
+        }
 
         if (items.isEmpty()) {
             EmptyState(
@@ -149,6 +160,8 @@ fun ShoppingScreen(container: AppContainer) {
             }
         }
     }
+
+    if (showPlanner) RecipePlannerSheet(container) { showPlanner = false }
 
     if (confirmClearAll) {
         AlertDialog(
@@ -198,5 +211,56 @@ private fun parseLine(text: String): Triple<Double?, String, String> {
         Triple(qty, maybeUnit, parts.drop(2).joinToString(" "))
     } else {
         Triple(qty, "", parts.drop(1).joinToString(" "))
+    }
+}
+
+/** Pick several recipes with servings each and add all their ingredients at once (merged by unit). */
+@Composable
+private fun RecipePlannerSheet(container: AppContainer, onDismiss: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val recipes by container.recipes.recipes.collectAsStateWithLifecycle(initialValue = emptyList())
+    val picked = remember { androidx.compose.runtime.mutableStateMapOf<Long, Int>() }
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+            Text("Plan your shopping", style = MaterialTheme.typography.titleLarge)
+            Text(
+                "Choose recipes and servings. Matching ingredients are combined.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (recipes.none { it.ingredients.isNotEmpty() }) {
+                Text("No recipes with ingredients yet.", modifier = Modifier.padding(vertical = 16.dp))
+            }
+            LazyColumn(Modifier.weight(1f, fill = false)) {
+                items(recipes.filter { it.ingredients.isNotEmpty() }, key = { it.id }) { r ->
+                    val servings = picked[r.id]
+                    Row(
+                        Modifier.fillMaxWidth().clickable { if (servings == null) picked[r.id] = r.servings else picked.remove(r.id) }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = servings != null, onCheckedChange = { if (it) picked[r.id] = r.servings else picked.remove(r.id) })
+                        Text(r.title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f), maxLines = 2)
+                        if (servings != null) {
+                            IconButton(onClick = { if (servings > 1) picked[r.id] = servings - 1 }) { Text("−", style = MaterialTheme.typography.titleLarge) }
+                            Text("$servings", style = MaterialTheme.typography.titleMedium)
+                            IconButton(onClick = { if (servings < 99) picked[r.id] = servings + 1 }) { Text("+", style = MaterialTheme.typography.titleLarge) }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            androidx.compose.material3.Button(
+                enabled = picked.isNotEmpty(),
+                onClick = {
+                    val chosen = picked.toMap()
+                    scope.launch {
+                        recipes.filter { it.id in chosen }.forEach { container.shopping.addRecipe(it, chosen.getValue(it.id)) }
+                        onDismiss()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(if (picked.isEmpty()) "Pick recipes" else "Add ${picked.size} recipe(s)") }
+        }
     }
 }

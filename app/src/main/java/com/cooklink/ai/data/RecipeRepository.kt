@@ -10,6 +10,7 @@ import com.cooklink.ai.model.Ingredient
 import com.cooklink.ai.model.Nutrition
 import com.cooklink.ai.model.Origin
 import com.cooklink.ai.model.Recipe
+import com.cooklink.ai.model.RecipeSnapshot
 import com.cooklink.ai.model.SourceLink
 import com.cooklink.ai.model.Step
 import kotlinx.coroutines.flow.Flow
@@ -32,7 +33,7 @@ class RecipeRepository(private val db: AppDatabase) {
     suspend fun save(recipe: Recipe): Long {
         val now = System.currentTimeMillis()
         return if (recipe.id == 0L) {
-            db.recipes().insert(recipe.copy(createdAt = now, updatedAt = now).toEntity())
+            db.recipes().insert(recipe.copy(updatedAt = now).toEntity())
         } else {
             db.recipes().update(recipe.copy(updatedAt = now).toEntity())
             recipe.id
@@ -75,6 +76,7 @@ class RecipeRepository(private val db: AppDatabase) {
         createdAt = createdAt,
         updatedAt = updatedAt,
         lastOpenedAt = lastOpenedAt,
+        originalJson = original?.let { json.encodeToString(it) },
     )
 
     private fun RecipeEntity.toModel() = Recipe(
@@ -98,6 +100,7 @@ class RecipeRepository(private val db: AppDatabase) {
         createdAt = createdAt,
         updatedAt = updatedAt,
         lastOpenedAt = lastOpenedAt,
+        original = originalJson?.let { decode<RecipeSnapshot>(it) },
     )
 
     private inline fun <reified T> decode(s: String): T? = runCatching { json.decodeFromString<T>(s) }.getOrNull()

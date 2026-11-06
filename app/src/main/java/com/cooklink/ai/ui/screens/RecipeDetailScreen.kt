@@ -31,6 +31,9 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.AddShoppingCart
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.CompareArrows
+import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FolderOpen
@@ -94,6 +97,9 @@ fun RecipeDetailScreen(
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onDeleted: () -> Unit,
+    onCook: (servings: Int) -> Unit,
+    onAskChef: () -> Unit,
+    onCompare: () -> Unit,
 ) {
     val repo = container.recipes
     val scope = rememberCoroutineScope()
@@ -153,6 +159,13 @@ fun RecipeDetailScreen(
                                     leadingIcon = { Icon(Icons.Outlined.Edit, null) },
                                     onClick = { menuOpen = false; onEdit() },
                                 )
+                                if (recipe.original != null) {
+                                    DropdownMenuItem(
+                                        text = { Text("Compare with original") },
+                                        leadingIcon = { Icon(Icons.Outlined.CompareArrows, null) },
+                                        onClick = { menuOpen = false; onCompare() },
+                                    )
+                                }
                                 DropdownMenuItem(
                                     text = { Text("Collections") },
                                     leadingIcon = { Icon(Icons.Outlined.FolderOpen, null) },
@@ -183,6 +196,23 @@ fun RecipeDetailScreen(
                     if (recipe.estimatedCount + recipe.missingCount > 0) {
                         Spacer(Modifier.height(14.dp))
                         ConfidenceBanner(recipe)
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        androidx.compose.material3.Button(
+                            onClick = { onCook(servings) },
+                            enabled = recipe.steps.isNotEmpty(),
+                            modifier = Modifier.weight(1f).height(52.dp),
+                        ) {
+                            Icon(Icons.Outlined.Restaurant, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Start cooking")
+                        }
+                        androidx.compose.material3.OutlinedButton(onClick = onAskChef, modifier = Modifier.height(52.dp)) {
+                            Icon(Icons.Outlined.AutoAwesome, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Ask chef")
+                        }
                     }
                 }
             }

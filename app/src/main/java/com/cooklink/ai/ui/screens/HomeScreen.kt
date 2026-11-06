@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Notes
@@ -54,6 +55,7 @@ fun HomeScreen(
     openRecipe: (Long) -> Unit,
     openImport: () -> Unit,
     openRecipes: () -> Unit,
+    openChef: () -> Unit,
 ) {
     val recipes by container.recipes.recipes.collectAsStateWithLifecycle(initialValue = emptyList())
     val recentlyOpened = remember(recipes) {
@@ -74,6 +76,28 @@ fun HomeScreen(
             }
         }
         item { ImportHero(openImport) }
+        item {
+            Card(
+                onClick = openChef,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+            ) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Ask the AI chef", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                        Text(
+                            "“What can I cook with what I have?”",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                    Icon(Icons.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                }
+            }
+        }
 
         if (recipes.isEmpty()) {
             item {

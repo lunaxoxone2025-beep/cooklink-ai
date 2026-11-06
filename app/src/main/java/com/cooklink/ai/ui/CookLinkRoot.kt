@@ -48,6 +48,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.cooklink.ai.AppContainer
+import com.cooklink.ai.ui.screens.ChefScreen
+import com.cooklink.ai.ui.screens.CompareScreen
+import com.cooklink.ai.ui.screens.CookingModeScreen
 import com.cooklink.ai.ui.screens.HomeScreen
 import com.cooklink.ai.ui.screens.ImportScreen
 import com.cooklink.ai.ui.screens.ProfileScreen
@@ -65,7 +68,13 @@ object Routes {
     const val PROFILE = "profile"
     const val DETAIL = "recipe/{id}"
     const val EDIT = "edit/{id}"
+    const val COMPARE = "compare/{id}"
+    const val COOK = "cook/{id}/{servings}"
+    const val CHEF = "chef/{id}"
     fun detail(id: Long) = "recipe/$id"
+    fun compare(id: Long) = "compare/$id"
+    fun cook(id: Long, servings: Int) = "cook/$id/$servings"
+    fun chef(id: Long = 0) = "chef/$id"
     fun edit(id: Long = 0) = "edit/$id"
 }
 
@@ -133,6 +142,7 @@ fun CookLinkRoot(
                     openRecipe = { nav.navigate(Routes.detail(it)) },
                     openImport = { nav.switchTab(Routes.IMPORT) },
                     openRecipes = { nav.switchTab(Routes.RECIPES) },
+                    openChef = { nav.navigate(Routes.chef()) },
                 )
             }
             composable(Routes.RECIPES) {
@@ -169,7 +179,27 @@ fun CookLinkRoot(
                     onBack = { nav.popBackStack() },
                     onEdit = { nav.navigate(Routes.edit(id)) },
                     onDeleted = { nav.popBackStack() },
+                    onCook = { servings -> nav.navigate(Routes.cook(id, servings)) },
+                    onAskChef = { nav.navigate(Routes.chef(id)) },
+                    onCompare = { nav.navigate(Routes.compare(id)) },
                 )
+            }
+            composable(Routes.COMPARE, arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+                CompareScreen(container, entry.arguments?.getLong("id") ?: 0L, onBack = { nav.popBackStack() })
+            }
+            composable(
+                Routes.COOK,
+                arguments = listOf(navArgument("id") { type = NavType.LongType }, navArgument("servings") { type = NavType.IntType }),
+            ) { entry ->
+                CookingModeScreen(
+                    container,
+                    recipeId = entry.arguments?.getLong("id") ?: 0L,
+                    servings = entry.arguments?.getInt("servings") ?: 0,
+                    onClose = { nav.popBackStack() },
+                )
+            }
+            composable(Routes.CHEF, arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+                ChefScreen(container, entry.arguments?.getLong("id") ?: 0L, onBack = { nav.popBackStack() })
             }
             composable(
                 Routes.EDIT,

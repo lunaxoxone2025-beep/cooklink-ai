@@ -27,6 +27,7 @@ data class RecipeEntity(
     val createdAt: Long,
     val updatedAt: Long,
     val lastOpenedAt: Long?,
+    @androidx.room.ColumnInfo(defaultValue = "NULL") val originalJson: String? = null,
 )
 
 @Entity(tableName = "collections")

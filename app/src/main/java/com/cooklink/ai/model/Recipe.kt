@@ -42,11 +42,27 @@ data class Nutrition(
 @Serializable
 data class SourceLink(val label: String, val url: String)
 
+/** Frozen copy of what the AI produced at import time, used for "compare with original". */
+@Serializable
+data class RecipeSnapshot(
+    val title: String,
+    val description: String = "",
+    val servings: Int = 2,
+    val prepMinutes: Int? = null,
+    val cookMinutes: Int? = null,
+    val ingredients: List<Ingredient> = emptyList(),
+    val steps: List<Step> = emptyList(),
+    val equipment: List<String> = emptyList(),
+)
+
+@Serializable
 enum class Difficulty(val label: String) { EASY("Easy"), MEDIUM("Medium"), HARD("Hard") }
 
 /** How the recipe got into the library. */
+@Serializable
 enum class Origin(val label: String) { MANUAL("Created by you"), URL("Link"), TEXT("Text"), IMAGE("Images"), VIDEO("Video"), COMBINED("Combined") }
 
+@Serializable
 data class Recipe(
     val id: Long = 0,
     val title: String,
@@ -68,7 +84,11 @@ data class Recipe(
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val lastOpenedAt: Long? = null,
+    /** The AI's version at import time; null for recipes written by hand. */
+    val original: RecipeSnapshot? = null,
 ) {
+    fun snapshot() = RecipeSnapshot(title, description, servings, prepMinutes, cookMinutes, ingredients, steps, equipment)
+
     val totalMinutes: Int?
         get() = if (prepMinutes == null && cookMinutes == null) null else (prepMinutes ?: 0) + (cookMinutes ?: 0)
 

@@ -29,6 +29,13 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.AddPhotoAlternate
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -70,6 +77,14 @@ fun RecipeEditorScreen(container: AppContainer, recipeId: Long, onClose: () -> U
         factory = viewModelFactory { initializer { RecipeEditorViewModel(container, recipeId) } },
     )
     var confirmDiscard by remember { mutableStateOf(false) }
+    var aiDialog by remember { mutableStateOf<AiDialog?>(null) }
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(vm.aiMessage) {
+        vm.aiMessage?.let {
+            snackbar.showSnackbar(it, withDismissAction = true, duration = SnackbarDuration.Long)
+            vm.aiMessage = null
+        }
+    }
     val pickCover = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) vm.setCover(uri)
     }
@@ -77,6 +92,7 @@ fun RecipeEditorScreen(container: AppContainer, recipeId: Long, onClose: () -> U
     BackHandler { confirmDiscard = true }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(if (recipeId == 0L) "New recipe" else "Edit recipe") },
@@ -147,21 +163,41 @@ fun RecipeEditorScreen(container: AppContainer, recipeId: Long, onClose: () -> U
                 }
             }
 
-            item { EditorHeader("Ingredients", "Amount, unit, then the ingredient. Fractions like 1/2 work.") }
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Scale all amounts", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                    val current = vm.servings.toIntOrNull() ?: 0
+                    OutlinedButton(onClick = { vm.scaleTo(current / 2) }, enabled = current >= 2) { Text("½×") }
+                    Spacer(Modifier.width(6.dp))
+                    OutlinedButton(onClick = { vm.scaleTo(current * 2) }, enabled = current in 1..49) { Text("2×") }
+                }
+            }
+            item { EditorHeader("Ingredients", "Amount, unit, then the ingredient. Fractions like 1/2 work. ⇄ asks the AI for a substitute.") }
             itemsIndexed(vm.ingredients, key = { _, r -> r.key }) { index, row ->
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Field(row.quantity, { vm.updateIngredient(index, row.copy(quantity = it)) }, "Qty", Modifier.width(72.dp))
                         Field(row.unit, { vm.updateIngredient(index, row.copy(unit = it)) }, "Unit", Modifier.width(76.dp))
                         Field(row.name, { vm.updateIngredient(index, row.copy(name = it)) }, "Ingredient", Modifier.weight(1f))
-                        IconButton(onClick = { vm.removeIngredient(index) }) { Icon(Icons.Outlined.Delete, contentDescription = "Remove ingredient") }
+                        if (vm.aiBusyIngredient == index) {
+                            CircularProgressIndicator(Modifier.size(24.dp).padding(2.dp), strokeWidth = 2.dp)
+                        } else {
+                            IconButton(
+                                onClick = { aiDialog = AiDialog.Swap(index, row.name) },
+                                enabled = row.name.isNotBlank() && !vm.aiBusy,
+                                modifier = Modifier.size(36.dp),
+                            ) { Icon(Icons.Outlined.SwapHoriz, contentDescription = "Replace with AI") }
+                        }
+                        IconButton(onClick = { vm.removeIngredient(index) }, modifier = Modifier.size(36.dp)) {
+                            Icon(Icons.Outlined.Delete, contentDescription = "Remove ingredient")
+                        }
                     }
                     CertaintyTag(row.certainty)
                 }
             }
             item { AddRowButton("Add ingredient", vm::addIngredient) }
 
-            item { EditorHeader("Steps", "One action per step. Add minutes and temperature if the step has them.") }
+            item { EditorHeader("Steps", "One action per step. ✨ lets the AI rewrite a step.") }
             itemsIndexed(vm.steps, key = { _, r -> r.key }) { index, row ->
                 Card(
                     shape = MaterialTheme.shapes.medium,
@@ -171,6 +207,13 @@ fun RecipeEditorScreen(container: AppContainer, recipeId: Long, onClose: () -> U
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("Step ${index + 1}", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                             CertaintyTag(row.certainty)
+                            if (vm.aiBusyStep == index) {
+                                CircularProgressIndicator(Modifier.size(24.dp).padding(2.dp), strokeWidth = 2.dp)
+                            } else {
+                                IconButton(onClick = { aiDialog = AiDialog.Rewrite(index) }, enabled = !vm.aiBusy && vm.title.isNotBlank()) {
+                                    Icon(Icons.Outlined.AutoAwesome, contentDescription = "Rewrite with AI")
+                                }
+                            }
                             IconButton(onClick = { vm.moveStep(index, index - 1) }, enabled = index > 0) {
                                 Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Move up")
                             }
@@ -228,6 +271,40 @@ fun RecipeEditorScreen(container: AppContainer, recipeId: Long, onClose: () -> U
         }
     }
 
+    aiDialog?.let { d ->
+        var wish by remember(d) { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { aiDialog = null },
+            title = { Text(if (d is AiDialog.Swap) "Replace “${d.name}”" else "Rewrite step ${(d as AiDialog.Rewrite).index + 1}") },
+            text = {
+                Column {
+                    Text(
+                        if (d is AiDialog.Swap) "What should it become? Leave empty for the usual substitute."
+                        else "Anything specific? Leave empty to just make it clearer.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = wish,
+                        onValueChange = { wish = it },
+                        placeholder = { Text(if (d is AiDialog.Swap) "e.g. olive oil, vegan, cheaper" else "e.g. use the oven, more detail") },
+                        singleLine = true,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    when (d) {
+                        is AiDialog.Swap -> vm.substituteIngredient(d.index, wish)
+                        is AiDialog.Rewrite -> vm.regenerateStep(d.index, wish)
+                    }
+                    aiDialog = null
+                }) { Text("Ask AI") }
+            },
+            dismissButton = { TextButton(onClick = { aiDialog = null }) { Text("Cancel") } },
+        )
+    }
+
     if (confirmDiscard) {
         AlertDialog(
             onDismissRequest = { confirmDiscard = false },
@@ -281,4 +358,9 @@ private fun AddRowButton(label: String, onClick: () -> Unit) {
         Spacer(Modifier.width(6.dp))
         Text(label)
     }
+}
+
+private sealed interface AiDialog {
+    data class Swap(val index: Int, val name: String) : AiDialog
+    data class Rewrite(val index: Int) : AiDialog
 }

@@ -144,14 +144,12 @@ class RecipeEditorViewModel(private val container: AppContainer, private val rec
 
     val canSave get() = title.isNotBlank() && !saving
 
-    fun save(onSaved: (Long) -> Unit) {
-        if (!canSave) return
-        saving = true
-        viewModelScope.launch {
+    /** The recipe as currently typed in the form. */
+    private fun buildRecipe(): Recipe {
             val base = original
-            val recipe = Recipe(
+            return Recipe(
                 id = base?.id ?: 0L,
-                title = title.trim(),
+                title = title.trim().ifBlank { "Untitled recipe" },
                 description = description.trim(),
                 coverUri = coverUri,
                 prepMinutes = prep.toIntOrNull(),
@@ -173,7 +171,16 @@ class RecipeEditorViewModel(private val container: AppContainer, private val rec
                 isFavorite = base?.isFavorite ?: false,
                 createdAt = base?.createdAt ?: System.currentTimeMillis(),
                 lastOpenedAt = base?.lastOpenedAt,
+                original = base?.original,
             )
+    }
+
+    fun save(onSaved: (Long) -> Unit) {
+        if (!canSave) return
+        saving = true
+        viewModelScope.launch {
+            val base = original
+            val recipe = buildRecipe()
             val id = container.recipes.save(recipe)
             // Remove covers that were picked then replaced, and the old cover if it changed.
             pendingCovers.filter { it != coverUri }.forEach { container.images.deleteCover(it) }
@@ -182,6 +189,94 @@ class RecipeEditorViewModel(private val container: AppContainer, private val rec
             saving = false
             onSaved(id)
         }
+    }
+
+    // ---------- AI helpers (Phase 4) ----------
+
+    /** Index of the step or ingredient the AI is working on, or null when idle. */
+    var aiBusyStep by mutableStateOf<Int?>(null)
+        private set
+    var aiBusyIngredient by mutableStateOf<Int?>(null)
+        private set
+    var aiMessage by mutableStateOf<String?>(null)
+
+    val aiBusy get() = aiBusyStep != null || aiBusyIngredient != null
+
+    fun regenerateStep(index: Int, wish: String) {
+        if (aiBusy || index !in steps.indices) return
+        aiBusyStep = index
+        viewModelScope.launch {
+            try {
+                val recipe = buildRecipe()
+                // Map the form row to the step index in the built recipe (blank rows are dropped).
+                val builtIndex = steps.take(index).count { it.text.isNotBlank() }
+                val step = container.assistant.regenerateStep(recipe, builtIndex, wish)
+                steps[index] = steps[index].copy(
+                    text = step.text,
+                    minutes = step.durationMinutes?.toString() ?: steps[index].minutes,
+                    temperature = step.temperature.ifBlank { steps[index].temperature },
+                    certainty = step.certainty,
+                )
+                aiMessage = "Step ${index + 1} rewritten by AI — check it before cooking."
+            } catch (e: com.cooklink.ai.data.ai.AiException) {
+                aiMessage = e.message
+            } catch (e: Exception) {
+                aiMessage = "AI request failed: ${e.message ?: e.javaClass.simpleName}"
+            } finally {
+                aiBusyStep = null
+            }
+        }
+    }
+
+    fun substituteIngredient(index: Int, wish: String) {
+        if (aiBusy || index !in ingredients.indices) return
+        aiBusyIngredient = index
+        viewModelScope.launch {
+            try {
+                val recipe = buildRecipe()
+                val builtIndex = ingredients.take(index).count { it.name.isNotBlank() }
+                val sub = container.assistant.substitute(recipe, builtIndex, wish)
+                val i = sub.ingredient
+                ingredients[index] = ingredients[index].copy(
+                    quantity = i.quantity?.let(::plainNumber) ?: "",
+                    unit = i.unit,
+                    name = i.name,
+                    note = i.note,
+                    category = i.category,
+                    certainty = i.certainty,
+                )
+                // Step indexes from the AI refer to non-blank steps; map back to form rows.
+                val formRows = steps.withIndex().filter { it.value.text.isNotBlank() }.map { it.index }
+                sub.stepChanges.forEach { (builtStep, text) ->
+                    formRows.getOrNull(builtStep)?.let { row ->
+                        steps[row] = steps[row].copy(text = text, certainty = com.cooklink.ai.model.Certainty.ESTIMATED)
+                    }
+                }
+                aiMessage = buildString {
+                    append("Swapped for ${i.name}.")
+                    if (sub.stepChanges.isNotEmpty()) append(" ${sub.stepChanges.size} step(s) updated.")
+                    if (sub.explanation.isNotBlank()) append(" ${sub.explanation}")
+                }
+            } catch (e: com.cooklink.ai.data.ai.AiException) {
+                aiMessage = e.message
+            } catch (e: Exception) {
+                aiMessage = "AI request failed: ${e.message ?: e.javaClass.simpleName}"
+            } finally {
+                aiBusyIngredient = null
+            }
+        }
+    }
+
+    /** Scales every ingredient amount to a new number of servings. */
+    fun scaleTo(newServings: Int) {
+        val old = servings.toIntOrNull()?.takeIf { it > 0 } ?: return
+        if (newServings !in 1..99 || newServings == old) return
+        val f = newServings.toDouble() / old
+        ingredients.indices.forEach { idx ->
+            val row = ingredients[idx]
+            parseNumber(row.quantity)?.let { q -> ingredients[idx] = row.copy(quantity = plainNumber(q * f)) }
+        }
+        servings = newServings.toString()
     }
 
     fun discard() {

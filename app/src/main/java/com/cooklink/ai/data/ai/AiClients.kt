@@ -54,7 +54,13 @@ interface AiClient {
 
     /** Sends [system] + [user] with optional [media] and returns the model's raw text reply. */
     suspend fun generate(system: String, user: String, media: AiMedia = AiMedia()): String
+
+    /** Plain-text multi-turn conversation (used by the AI chef). */
+    suspend fun chat(system: String, turns: List<ChatTurn>): String
 }
+
+/** One message in a chat; [fromUser] false means the assistant said it. */
+data class ChatTurn(val fromUser: Boolean, val text: String)
 
 private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
 private val json = Json { ignoreUnknownKeys = true }
@@ -108,6 +114,34 @@ class GeminiClient(private val http: OkHttpClient, private val apiKey: String) :
             .post(body.toString().toRequestBody(JSON_MEDIA))
             .build()
 
+        send(request)
+    }
+
+    override suspend fun chat(system: String, turns: List<ChatTurn>): String = withContext(Dispatchers.IO) {
+        val body = buildJsonObject {
+            putJsonObject("systemInstruction") {
+                putJsonArray("parts") { addJsonObject { put("text", system) } }
+            }
+            putJsonArray("contents") {
+                turns.forEach { t ->
+                    addJsonObject {
+                        put("role", if (t.fromUser) "user" else "model")
+                        putJsonArray("parts") { addJsonObject { put("text", t.text) } }
+                    }
+                }
+            }
+            putJsonObject("generationConfig") { put("temperature", 0.6) }
+        }
+        send(
+            Request.Builder()
+                .url("$BASE/v1beta/models/$MODEL:generateContent")
+                .header("x-goog-api-key", apiKey)
+                .post(body.toString().toRequestBody(JSON_MEDIA))
+                .build()
+        )
+    }
+
+    private fun send(request: Request): String {
         val (code, text) = execute(http, request, "Gemini")
         val root = parseObject(text, "Gemini")
         if (code !in 200..299) throw AiException(geminiError(code, root))
@@ -124,9 +158,9 @@ class GeminiClient(private val http: OkHttpClient, private val apiKey: String) :
         }.joinToString("")
         if (answer.isBlank()) {
             val reason = candidate["finishReason"]?.jsonPrimitive?.contentOrNull ?: "unknown"
-            throw AiException("Gemini stopped without a recipe (reason: $reason).")
+            throw AiException("Gemini stopped without an answer (reason: $reason).")
         }
-        answer
+        return answer
     }
 
     /**
@@ -251,6 +285,27 @@ class ClaudeClient(private val http: OkHttpClient, private val apiKey: String) :
                 }
             }
         }
+        send(body)
+    }
+
+    override suspend fun chat(system: String, turns: List<ChatTurn>): String = withContext(Dispatchers.IO) {
+        val body = buildJsonObject {
+            put("model", MODEL)
+            put("max_tokens", 4000)
+            put("system", system)
+            putJsonArray("messages") {
+                turns.forEach { t ->
+                    addJsonObject {
+                        put("role", if (t.fromUser) "user" else "assistant")
+                        put("content", t.text)
+                    }
+                }
+            }
+        }
+        send(body)
+    }
+
+    private fun send(body: JsonObject): String {
         val request = Request.Builder()
             .url("https://api.anthropic.com/v1/messages")
             .header("x-api-key", apiKey)
@@ -278,7 +333,7 @@ class ClaudeClient(private val http: OkHttpClient, private val apiKey: String) :
             .mapNotNull { it.jsonObject["text"]?.jsonPrimitive?.contentOrNull }
             .joinToString("")
         if (answer.isBlank()) throw AiException("Claude returned an empty answer. Try again.")
-        answer
+        return answer
     }
 
     companion object {

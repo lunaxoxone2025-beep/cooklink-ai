@@ -154,13 +154,15 @@ fun ProfileScreen(container: AppContainer) {
             item(key = "key-${p.name}") { KeyEditor(container, p, configured[p] == true) }
         }
 
+        item { BackupSection(container) }
+
         item {
             Section("About") {
                 Text("CookLink AI ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Built in phases. Ready now: library, collections, favourites, editor, shopping list, AI import from links, text, photos, screenshots and phone videos (alone or combined). " +
-                        "Next: smarter recipe generation (4), cooking mode (5), AI chef (6).",
+                    "Import recipes from links, text, photos, screenshots and phone videos with AI. " +
+                        "Includes AI editing, cooking mode with timers and voice, the AI chef and backups.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -235,5 +237,45 @@ private fun Stat(label: String, value: String, modifier: Modifier) {
     ) {
         Text(value, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+    }
+}
+
+@Composable
+private fun BackupSection(container: AppContainer) {
+    val scope = rememberCoroutineScope()
+    var message by remember { mutableStateOf<String?>(null) }
+    var working by remember { mutableStateOf(false) }
+    val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri != null) scope.launch {
+            working = true
+            message = runCatching { container.backup.export(uri) }
+                .fold({ "Saved $it recipes to the backup file." }, { it.message ?: "Backup failed." })
+            working = false
+        }
+    }
+    val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) scope.launch {
+            working = true
+            message = runCatching { container.backup.restore(uri) }
+                .fold({ if (it == 0) "Nothing new: all recipes were already here." else "Restored $it recipes." }, { it.message ?: "Restore failed." })
+            working = false
+        }
+    }
+    Section("Backup & sync") {
+        Text(
+            "Save your whole cookbook (with photos) to one file — keep it in Google Drive or send it to another phone, then restore it there. API keys are never included.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilledTonalButton(enabled = !working, onClick = { exportLauncher.launch("cooklink-backup.json") }) { Text("Back up") }
+            TextButton(enabled = !working, onClick = { importLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) }) { Text("Restore") }
+        }
+        message?.let { Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp)) }
     }
 }

@@ -7,6 +7,8 @@ import com.cooklink.ai.data.ShoppingRepository
 import com.cooklink.ai.data.db.AppDatabase
 import com.cooklink.ai.data.settings.SecureKeyStore
 import com.cooklink.ai.data.settings.SettingsRepository
+import com.cooklink.ai.data.ai.AiProviders
+import com.cooklink.ai.data.ai.RecipeAssistant
 import com.cooklink.ai.data.importer.ImportController
 import com.cooklink.ai.data.importer.MediaPrep
 import com.cooklink.ai.data.importer.RecipeImporter
@@ -32,6 +34,8 @@ class AppContainer(app: Application) {
 
     val importer = RecipeImporter(http, keys, settings, recipes, images, MediaPrep(app))
     val imports = ImportController(importer)
+    val assistant = RecipeAssistant(AiProviders(http, keys, settings))
+    val backup = com.cooklink.ai.data.BackupManager(app, recipes, images)
 }
 
 class CookLinkApp : Application() {

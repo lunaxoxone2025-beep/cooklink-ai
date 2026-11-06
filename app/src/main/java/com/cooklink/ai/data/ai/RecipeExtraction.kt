@@ -139,7 +139,7 @@ JSON shape:
             )
         }
         if (ingredients.isEmpty() && steps.isEmpty()) throw AiException("The AI couldn't find ingredients or steps in this content.")
-        return Recipe(
+        val recipe = Recipe(
             title = ai.title.trim().ifBlank { "Untitled recipe" },
             description = ai.description.trim(),
             coverUri = coverUri,
@@ -162,6 +162,7 @@ JSON shape:
             tags = ai.tags.map { it.trim() }.filter { it.isNotEmpty() }.distinct().take(8),
             origin = origin,
         )
+        return recipe.copy(original = recipe.snapshot())
     }
 
     private fun certaintyOf(s: String?) = when (s?.lowercase()?.trim()) {
