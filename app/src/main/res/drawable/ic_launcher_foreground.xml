@@ -7,19 +7,19 @@
     android:viewportHeight="108">
     <!-- pot body -->
     <path
-        android:fillColor="#FFF8F1"
+        android:fillColor="#C6FF3D"
         android:pathData="M32,52 L76,52 L73,74 Q72,80 66,80 L42,80 Q36,80 35,74 Z" />
     <!-- rim -->
     <path
-        android:fillColor="#FFF8F1"
+        android:fillColor="#C6FF3D"
         android:pathData="M28,47 L80,47 Q82,47 82,49 L82,50 Q82,52 80,52 L28,52 Q26,52 26,50 L26,49 Q26,47 28,47 Z" />
     <!-- handles -->
     <path
-        android:fillColor="#FFF8F1"
+        android:fillColor="#C6FF3D"
         android:pathData="M24,56 L32,56 L32,60 L24,60 Q22,60 22,58 Q22,56 24,56 Z M76,56 L84,56 Q86,56 86,58 Q86,60 84,60 L76,60 Z" />
     <!-- steam: two linked loops -->
     <path
-        android:strokeColor="#FFF8F1"
+        android:strokeColor="#C6FF3D"
         android:strokeWidth="3.5"
         android:strokeLineCap="round"
         android:fillColor="#00000000"

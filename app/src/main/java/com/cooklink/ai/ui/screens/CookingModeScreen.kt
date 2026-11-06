@@ -377,12 +377,12 @@ private fun StepPage(number: Int, total: Int, text: String, temperature: String,
     ) {
         Text(
             "STEP $number / $total",
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.Bold,
         )
         Spacer(Modifier.height(12.dp))
-        Text(text, fontSize = 28.sp, lineHeight = 38.sp, style = MaterialTheme.typography.headlineSmall)
+        Text(text, fontSize = 27.sp, lineHeight = 37.sp, fontWeight = FontWeight.Bold, fontFamily = com.cooklink.ai.ui.theme.Body)
         if (temperature.isNotBlank()) {
             Spacer(Modifier.height(16.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -405,8 +405,9 @@ private fun TimerCard(t: StepTimer) {
             Text(
                 if (t.finished) "Done!" else clock(t.remaining),
                 fontSize = 40.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                fontWeight = FontWeight.Black,
+                fontFamily = com.cooklink.ai.ui.theme.Display,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f),
             )
             if (t.running) {

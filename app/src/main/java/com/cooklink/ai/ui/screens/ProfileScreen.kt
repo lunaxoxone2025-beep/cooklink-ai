@@ -51,7 +51,13 @@ import com.cooklink.ai.AppContainer
 import com.cooklink.ai.BuildConfig
 import com.cooklink.ai.data.settings.AiProvider
 import com.cooklink.ai.data.settings.RecipeLanguage
-import com.cooklink.ai.data.settings.ThemeMode
+import com.cooklink.ai.data.settings.NeonAccent
+import com.cooklink.ai.ui.theme.color
+import com.cooklink.ai.ui.theme.neonGlow
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
 import com.cooklink.ai.ui.theme.LocalCertaintyColors
 import kotlinx.coroutines.launch
 
@@ -60,7 +66,7 @@ fun ProfileScreen(container: AppContainer) {
     val scope = rememberCoroutineScope()
     val recipes by container.recipes.recipes.collectAsStateWithLifecycle(initialValue = emptyList())
     val collections by container.recipes.collections.collectAsStateWithLifecycle(initialValue = emptyList())
-    val theme by container.settings.themeMode.collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM)
+    val accent by container.settings.accent.collectAsStateWithLifecycle(initialValue = NeonAccent.LIME)
     val provider by container.settings.provider.collectAsStateWithLifecycle(initialValue = AiProvider.GEMINI)
     val configured by container.keys.configured.collectAsStateWithLifecycle()
     val language by container.settings.recipeLanguage.collectAsStateWithLifecycle(initialValue = RecipeLanguage.ORIGINAL)
@@ -70,7 +76,7 @@ fun ProfileScreen(container: AppContainer) {
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item { Text("Profile", style = MaterialTheme.typography.headlineLarge) }
+        item { Text("PROFILE", style = MaterialTheme.typography.displaySmall) }
 
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -81,14 +87,26 @@ fun ProfileScreen(container: AppContainer) {
         }
 
         item {
-            Section("Appearance") {
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    ThemeMode.entries.forEachIndexed { i, mode ->
-                        SegmentedButton(
-                            selected = theme == mode,
-                            onClick = { scope.launch { container.settings.setTheme(mode) } },
-                            shape = SegmentedButtonDefaults.itemShape(i, ThemeMode.entries.size),
-                        ) { Text(mode.label) }
+            Section("Neon colour") {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    NeonAccent.entries.forEach { a ->
+                        val c = a.color()
+                        val selected = accent == a
+                        Column(
+                            Modifier.weight(1f).clip(MaterialTheme.shapes.medium)
+                                .clickable { scope.launch { container.settings.setAccent(a) } }
+                                .padding(vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Box(
+                                Modifier.size(44.dp)
+                                    .then(if (selected) Modifier.neonGlow(c, radius = 14.dp, corner = 22.dp, strength = 0.8f) else Modifier)
+                                    .clip(CircleShape).background(c)
+                                    .border(if (selected) 3.dp else 0.dp, com.cooklink.ai.ui.theme.Neon.Ink, CircleShape),
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(a.label.uppercase(), style = MaterialTheme.typography.labelSmall, color = if (selected) c else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }
@@ -222,7 +240,7 @@ private fun Section(title: String, content: @Composable () -> Unit) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Column(Modifier.padding(16.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(title.uppercase(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(10.dp))
             content()
         }

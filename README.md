@@ -17,6 +17,10 @@ Kotlin + Jetpack Compose (Material 3), Room, DataStore, OkHttp. Works with **Goo
 | 6 | Personal AI chef, smart shopping list | Done |
 | 7 | Tests, backup/sync, stable signed APK, docs | Done |
 
+## Look
+
+“Neon night” interface: always dark, one electric accent colour (lime, orange, pink or cyan — chosen in Profile), glowing highlights, a floating pill navigation bar and two bundled typefaces: **Unbounded** for titles and **Space Grotesk** for text (both SIL Open Font License).
+
 ## Features
 
 **Import (Import tab, or Share → CookLink AI from any app)**
@@ -51,7 +55,7 @@ Kotlin + Jetpack Compose (Material 3), Room, DataStore, OkHttp. Works with **Goo
 - Ingredients from different recipes are combined across compatible units (g/kg, ml/l, tsp/tbsp/cup, oz/lb), grouped by aisle, ticked off, and you can add items manually ("2 kg potatoes" is parsed).
 
 **Profile**
-- Light, dark or system theme.
+- Neon accent colour: lime, orange, pink or cyan.
 - AI provider (Gemini or Claude) and API keys.
 - Recipe language: same as source, Spanish, English, Italian, Slovenian, German or French.
 - **Backup & sync:** export the whole cookbook, with photos, to a single JSON file (keep it in Google Drive, send it to another phone) and restore it anywhere. Duplicates are skipped and API keys are never included.
@@ -76,6 +80,13 @@ Every push to `main` runs `.github/workflows/build-apk.yml`. It runs the unit te
 
 ### Locally
 Requirements: JDK 17, Android SDK 35, Gradle 8.11+ (or Android Studio Ladybug or newer).
+First download the two fonts used by the neon interface (the CI does this automatically):
+
+```
+mkdir -p app/src/main/res/font
+curl -L -o app/src/main/res/font/unbounded.ttf "https://raw.githubusercontent.com/google/fonts/main/ofl/unbounded/Unbounded%5Bwght%5D.ttf"
+curl -L -o app/src/main/res/font/space_grotesk.ttf "https://raw.githubusercontent.com/google/fonts/main/ofl/spacegrotesk/SpaceGrotesk%5Bwght%5D.ttf"
+```
 
 ```
 gradle :app:testDebugUnitTest      # unit tests

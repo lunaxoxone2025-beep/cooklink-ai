@@ -186,7 +186,7 @@ fun RecipeDetailScreen(
                 Column(Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
                     Text(recipe.origin.label.uppercase(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.height(4.dp))
-                    Text(recipe.title, style = MaterialTheme.typography.headlineMedium)
+                    Text(recipe.title.uppercase(), style = MaterialTheme.typography.headlineLarge)
                     if (recipe.description.isNotBlank()) {
                         Spacer(Modifier.height(8.dp))
                         Text(recipe.description, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)

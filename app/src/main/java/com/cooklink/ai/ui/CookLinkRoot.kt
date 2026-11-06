@@ -9,6 +9,18 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.ui.draw.clip
+import com.cooklink.ai.ui.theme.neonGlow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -119,6 +131,7 @@ fun CookLinkRoot(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             AnimatedVisibility(
                 visible = showBar,
@@ -230,38 +243,58 @@ private fun NavHostController.switchTab(route: String) {
     }
 }
 
+/**
+ * Floating pill-shaped navigation bar. The active tab lights up in the accent colour;
+ * Import is a glowing button in the middle because it's the app's main action.
+ */
 @Composable
 private fun BottomBar(current: String?, onSelect: (String) -> Unit) {
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
-        tabs.forEach { tab ->
-            val selected = current == tab.route
-            if (tab.route == Routes.IMPORT) {
-                // Import is the app's main action: a raised, always-visible button in the middle.
-                NavigationBarItem(
-                    selected = selected,
-                    onClick = { onSelect(tab.route) },
-                    icon = {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primary,
-                            shadowElevation = 4.dp,
-                            modifier = Modifier.size(48.dp),
+    val accent = com.cooklink.ai.ui.theme.LocalNeon.current.accent
+    Box(
+        Modifier.fillMaxWidth().background(
+            androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.Transparent, com.cooklink.ai.ui.theme.Neon.Ink))
+        ).navigationBarsPadding().padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().height(68.dp)
+                .clip(CircleShape)
+                .background(com.cooklink.ai.ui.theme.Neon.Panel)
+                .border(1.dp, com.cooklink.ai.ui.theme.Neon.Line, CircleShape)
+                .padding(horizontal = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            tabs.forEach { tab ->
+                val selected = current == tab.route
+                Box(
+                    Modifier.weight(1f).fillMaxHeight().clip(CircleShape).clickable { onSelect(tab.route) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (tab.route == Routes.IMPORT) {
+                        Box(
+                            Modifier.size(52.dp)
+                                .neonGlow(accent, radius = if (selected) 20.dp else 12.dp, corner = 26.dp, strength = 0.7f)
+                                .clip(CircleShape)
+                                .background(accent),
+                            contentAlignment = Alignment.Center,
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(tab.icon, contentDescription = "Import a recipe", tint = MaterialTheme.colorScheme.onPrimary)
+                            Icon(tab.icon, contentDescription = "Import a recipe", tint = com.cooklink.ai.ui.theme.Neon.Ink, modifier = Modifier.size(28.dp))
+                        }
+                    } else {
+                        val tint by androidx.compose.animation.animateColorAsState(
+                            if (selected) accent else com.cooklink.ai.ui.theme.Neon.Muted, label = "tab",
+                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(if (selected) tab.selectedIcon else tab.icon, contentDescription = tab.label, tint = tint)
+                            Spacer(Modifier.height(3.dp))
+                            androidx.compose.animation.AnimatedVisibility(selected) {
+                                Box(Modifier.size(width = 18.dp, height = 3.dp).clip(CircleShape).background(accent))
+                            }
+                            if (!selected) {
+                                Text(tab.label.uppercase(), style = MaterialTheme.typography.labelSmall, color = tint)
                             }
                         }
-                    },
-                    label = { Text(tab.label) },
-                    colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                )
-            } else {
-                NavigationBarItem(
-                    selected = selected,
-                    onClick = { onSelect(tab.route) },
-                    icon = { Icon(if (selected) tab.selectedIcon else tab.icon, contentDescription = tab.label) },
-                    label = { Text(tab.label) },
-                )
+                    }
+                }
             }
         }
     }

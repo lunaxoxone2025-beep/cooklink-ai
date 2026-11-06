@@ -79,7 +79,7 @@ fun ShoppingScreen(container: AppContainer) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 20.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Shopping", style = MaterialTheme.typography.headlineLarge)
+                Text("SHOPPING", style = MaterialTheme.typography.displaySmall)
                 val left = items.count { !it.checked }
                 Text(
                     if (items.isEmpty()) "Nothing on the list" else "$left to buy · ${done.size} in the basket",

@@ -132,7 +132,7 @@ fun ImportScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Text("Import", style = MaterialTheme.typography.headlineLarge)
+            Text("IMPORT", style = MaterialTheme.typography.displaySmall)
             Text(
                 "Tip: tap Share → CookLink AI in YouTube, TikTok, Instagram or your gallery.",
                 style = MaterialTheme.typography.bodyMedium,

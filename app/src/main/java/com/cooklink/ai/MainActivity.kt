@@ -6,11 +6,11 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import com.cooklink.ai.data.settings.ThemeMode
+import com.cooklink.ai.data.settings.NeonAccent
 import com.cooklink.ai.ui.CookLinkRoot
 import com.cooklink.ai.ui.theme.CookLinkTheme
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,17 +25,16 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // The neon interface is always dark, so system bar icons are always light.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         handleIntent(intent)
         val container = (application as CookLinkApp).container
         setContent {
-            val mode by container.settings.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
-            val dark = when (mode) {
-                ThemeMode.SYSTEM -> isSystemInDarkTheme()
-                ThemeMode.LIGHT -> false
-                ThemeMode.DARK -> true
-            }
-            CookLinkTheme(darkTheme = dark) {
+            val accent by container.settings.accent.collectAsState(initial = NeonAccent.LIME)
+            CookLinkTheme(accent = accent) {
                 CookLinkRoot(
                     container = container,
                     sharedText = sharedText,

@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.map
 
 enum class ThemeMode(val label: String) { SYSTEM("System"), LIGHT("Light"), DARK("Dark") }
 
+/** Accent colour of the neon interface. */
+enum class NeonAccent(val label: String) { LIME("Lima"), ORANGE("Naranja"), PINK("Rosa"), CYAN("Cian") }
+
 enum class AiProvider(val label: String, val keyHint: String, val keyUrl: String) {
     GEMINI("Google Gemini", "AIza…", "https://aistudio.google.com/apikey"),
     CLAUDE("Anthropic Claude", "sk-ant-…", "https://console.anthropic.com/settings/keys"),
@@ -31,6 +34,13 @@ class SettingsRepository(private val context: Context) {
     private val themeKey = stringPreferencesKey("theme")
     private val providerKey = stringPreferencesKey("provider")
     private val languageKey = stringPreferencesKey("recipe_language")
+    private val accentKey = stringPreferencesKey("accent")
+
+    val accent: Flow<NeonAccent> = context.dataStore.data.map { p ->
+        NeonAccent.entries.firstOrNull { it.name == p[accentKey] } ?: NeonAccent.LIME
+    }
+
+    suspend fun setAccent(a: NeonAccent) = context.dataStore.edit { it[accentKey] = a.name }
 
     val themeMode: Flow<ThemeMode> = context.dataStore.data.map { p ->
         ThemeMode.entries.firstOrNull { it.name == p[themeKey] } ?: ThemeMode.SYSTEM

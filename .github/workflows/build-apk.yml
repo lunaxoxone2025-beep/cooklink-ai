@@ -23,6 +23,14 @@ jobs:
         with:
           gradle-version: 8.11.1
 
+      # Fonts (SIL Open Font License) come straight from the Google Fonts repository.
+      - name: Download fonts
+        run: |
+          mkdir -p app/src/main/res/font
+          curl -fsSL --retry 3 -o app/src/main/res/font/unbounded.ttf "https://raw.githubusercontent.com/google/fonts/main/ofl/unbounded/Unbounded%5Bwght%5D.ttf"
+          curl -fsSL --retry 3 -o app/src/main/res/font/space_grotesk.ttf "https://raw.githubusercontent.com/google/fonts/main/ofl/spacegrotesk/SpaceGrotesk%5Bwght%5D.ttf"
+          ls -la app/src/main/res/font
+
       - name: Run unit tests
         run: gradle :app:testDebugUnitTest --stacktrace
 

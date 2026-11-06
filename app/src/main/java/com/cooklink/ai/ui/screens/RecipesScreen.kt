@@ -105,8 +105,8 @@ fun RecipesScreen(container: AppContainer, openRecipe: (Long) -> Unit, createRec
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             Text(
-                "Recipes",
-                style = MaterialTheme.typography.headlineLarge,
+                "RECIPES",
+                style = MaterialTheme.typography.displaySmall,
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp),
             )
             TextField(
