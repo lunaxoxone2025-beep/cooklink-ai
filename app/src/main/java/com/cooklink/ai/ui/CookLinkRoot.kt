@@ -92,6 +92,16 @@ fun CookLinkRoot(container: AppContainer, sharedText: StateFlow<String?>, onShar
         if (shared != null) nav.switchTab(Routes.IMPORT)
     }
 
+    // When an AI import finishes, open the new recipe wherever the user is in the app.
+    val importState by container.imports.state.collectAsState()
+    LaunchedEffect(importState) {
+        val s = importState
+        if (s is com.cooklink.ai.data.importer.ImportState.Done && !s.opened) {
+            container.imports.markOpened()
+            nav.navigate(Routes.detail(s.recipeId))
+        }
+    }
+
     Scaffold(
         bottomBar = {
             AnimatedVisibility(

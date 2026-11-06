@@ -2,19 +2,29 @@
 
 Android app that turns cooking videos, links, photos and notes into structured recipes. Kotlin + Jetpack Compose, Material 3, Room, DataStore.
 
-## Status: Phase 1 of 7
+## Status: Phase 2 of 7
 
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | UI, navigation, recipe storage | **Done** |
-| 2 | URL and text import (AI) | Next |
-| 3 | Image and video analysis | — |
+| 2 | URL and text import (AI) | **Done** |
+| 3 | Image and video analysis | Next |
 | 4 | AI recipe generation, confidence indicators | — |
 | 5 | Interactive cooking mode | — |
 | 6 | Personal AI chef, smart shopping | — |
 | 7 | Testing, optimisation, release APK | — |
 
-### What works in Phase 1
+### What's new in Phase 2
+
+- **Import with AI** from a link: YouTube / Shorts are watched by Gemini (`gemini-3.8-flash`, public videos only); recipe sites are read from their schema.org data and page text; TikTok via its official oEmbed caption; Instagram / Facebook from the post's public preview tags.
+- **Text import**: paste notes, a caption or a transcript and get a structured recipe.
+- Every ingredient and step is marked confirmed / AI estimate / missing; missing amounts are never filled in.
+- Cover photo downloaded automatically from the video thumbnail or page image.
+- Imports keep running if you change tab; the new recipe opens automatically. Clear error messages (bad key, quota, private video, no caption…).
+- Recipe language setting in Profile (same as source, Spanish, English, Italian, Slovenian, German, French).
+- Claude (`claude-sonnet-5-5`) works for text and web pages; for YouTube without a Gemini key it uses only the title and description and says so.
+
+### What works since Phase 1
 
 - Five-tab navigation: Home · Recipes · **Import** (raised centre button) · Shopping · Profile
 - Recipe library stored on the device (Room), works offline

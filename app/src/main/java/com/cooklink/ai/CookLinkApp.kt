@@ -7,6 +7,10 @@ import com.cooklink.ai.data.ShoppingRepository
 import com.cooklink.ai.data.db.AppDatabase
 import com.cooklink.ai.data.settings.SecureKeyStore
 import com.cooklink.ai.data.settings.SettingsRepository
+import com.cooklink.ai.data.importer.ImportController
+import com.cooklink.ai.data.importer.RecipeImporter
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 /** Manual dependency container — small enough that a DI framework isn't worth it yet. */
 class AppContainer(app: Application) {
@@ -16,6 +20,17 @@ class AppContainer(app: Application) {
     val settings = SettingsRepository(app)
     val keys = SecureKeyStore(app)
     val images = ImageStore(app)
+
+    /** Long timeouts: watching a video can take the AI a minute or more. */
+    private val http = OkHttpClient.Builder()
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(240, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .callTimeout(300, TimeUnit.SECONDS)
+        .build()
+
+    val importer = RecipeImporter(http, keys, settings, recipes, images)
+    val imports = ImportController(importer)
 }
 
 class CookLinkApp : Application() {

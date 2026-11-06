@@ -14,8 +14,8 @@ android {
         applicationId = "com.cooklink.ai"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0-phase1"
+        versionCode = 2
+        versionName = "0.2.0-phase2"
         vectorDrawables { useSupportLibrary = true }
     }
 
@@ -68,4 +68,5 @@ dependencies {
     implementation(libs.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.coil.compose)
+    implementation(libs.okhttp)
 }

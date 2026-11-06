@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 
 package com.cooklink.ai.ui.screens
 
@@ -50,6 +50,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cooklink.ai.AppContainer
 import com.cooklink.ai.BuildConfig
 import com.cooklink.ai.data.settings.AiProvider
+import com.cooklink.ai.data.settings.RecipeLanguage
 import com.cooklink.ai.data.settings.ThemeMode
 import com.cooklink.ai.ui.theme.LocalCertaintyColors
 import kotlinx.coroutines.launch
@@ -62,6 +63,7 @@ fun ProfileScreen(container: AppContainer) {
     val theme by container.settings.themeMode.collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM)
     val provider by container.settings.provider.collectAsStateWithLifecycle(initialValue = AiProvider.GEMINI)
     val configured by container.keys.configured.collectAsStateWithLifecycle()
+    val language by container.settings.recipeLanguage.collectAsStateWithLifecycle(initialValue = RecipeLanguage.ORIGINAL)
 
     LazyColumn(
         Modifier.fillMaxSize().statusBarsPadding(),
@@ -111,7 +113,7 @@ fun ProfileScreen(container: AppContainer) {
                             Text(
                                 when (p) {
                                     AiProvider.GEMINI -> "Watches whole videos and listens to audio."
-                                    AiProvider.CLAUDE -> "Strong at photos and text; videos are sampled into frames."
+                                    AiProvider.CLAUDE -> "Strong at text and recipe pages. Cannot watch YouTube videos."
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -120,6 +122,29 @@ fun ProfileScreen(container: AppContainer) {
                         if (configured[p] == true) {
                             Icon(Icons.Filled.CheckCircle, contentDescription = "Key saved", tint = LocalCertaintyColors.current.confirmed, modifier = Modifier.size(20.dp))
                         }
+                    }
+                }
+            }
+        }
+
+        item {
+            Section("Recipe language") {
+                Text(
+                    "Imported recipes are written in this language.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    RecipeLanguage.entries.forEach { l ->
+                        androidx.compose.material3.FilterChip(
+                            selected = language == l,
+                            onClick = { scope.launch { container.settings.setRecipeLanguage(l) } },
+                            label = { Text(l.label) },
+                        )
                     }
                 }
             }
@@ -134,8 +159,8 @@ fun ProfileScreen(container: AppContainer) {
                 Text("CookLink AI ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Built in phases. Ready now: library, collections, favourites, editor, shopping list, link drafts, sharing links into the app. " +
-                        "Next: AI import from links and text (2), photos and video (3), recipe generation (4), cooking mode (5), AI chef (6).",
+                    "Built in phases. Ready now: library, collections, favourites, editor, shopping list, AI import from links and text. " +
+                        "Next: photos and video (3), recipe generation (4), cooking mode (5), AI chef (6).",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

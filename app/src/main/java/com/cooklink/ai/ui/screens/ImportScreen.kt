@@ -2,6 +2,7 @@
 
 package com.cooklink.ai.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,15 +13,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Layers
@@ -30,11 +34,13 @@ import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,12 +54,15 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cooklink.ai.AppContainer
+import com.cooklink.ai.data.importer.ImportState
 import com.cooklink.ai.model.Origin
 import com.cooklink.ai.model.Recipe
 import com.cooklink.ai.model.SourceLink
+import com.cooklink.ai.ui.theme.LocalCertaintyColors
 import kotlinx.coroutines.launch
 
 @Composable
@@ -67,28 +76,50 @@ fun ImportScreen(
 ) {
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
+    val imports = container.imports
+    val state by imports.state.collectAsStateWithLifecycle()
     val configured by container.keys.configured.collectAsStateWithLifecycle()
     val hasAnyKey = configured.values.any { it }
-    var link by rememberSaveable { mutableStateOf("") }
+    val busy = state is ImportState.Running
 
+    var link by rememberSaveable { mutableStateOf("") }
+    var text by rememberSaveable { mutableStateOf("") }
+    var textOpen by rememberSaveable { mutableStateOf(false) }
+
+    // Shared links go in the link box; shared captions without a link go in the text box.
     LaunchedEffect(sharedText) {
         if (sharedText != null) {
-            link = extractUrl(sharedText) ?: sharedText.trim()
+            val url = extractUrl(sharedText)
+            if (url != null) {
+                link = url
+            } else {
+                text = sharedText.trim()
+                textOpen = true
+            }
             onSharedTextConsumed()
+        }
+    }
+
+    // The new recipe is opened app-wide by CookLinkRoot; here we just clear the inputs.
+    LaunchedEffect(state) {
+        if (state is ImportState.Done) {
+            link = ""
+            text = ""
+            textOpen = false
         }
     }
 
     val url = extractUrl(link)
 
     LazyColumn(
-        Modifier.fillMaxSize().statusBarsPadding(),
+        Modifier.fillMaxSize().statusBarsPadding().imePadding(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
             Text("Import", style = MaterialTheme.typography.headlineLarge)
             Text(
-                "Bring in a recipe from anywhere. Tip: in YouTube, TikTok or Instagram tap Share → CookLink AI.",
+                "Tip: in YouTube, TikTok or Instagram tap Share → CookLink AI.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -105,7 +136,7 @@ fun ImportScreen(
                         Icon(Icons.Outlined.Key, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
                         Spacer(Modifier.width(12.dp))
                         Text(
-                            "Add a Gemini or Claude API key in Profile so AI import is ready when it switches on.",
+                            "Add a Gemini or Claude API key in Profile to import with AI.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
                         )
@@ -114,7 +145,9 @@ fun ImportScreen(
             }
         }
 
-        // Link: the most common path, so it sits on top with its own input.
+        item { StatusCard(state, onRetryDismiss = { imports.dismiss() }, onCancel = { imports.cancel() }, onOpen = openRecipe) }
+
+        // Link
         item {
             Card(
                 shape = MaterialTheme.shapes.large,
@@ -128,45 +161,148 @@ fun ImportScreen(
                         onValueChange = { link = it },
                         placeholder = { Text("Paste a link") },
                         singleLine = true,
+                        enabled = !busy,
                         shape = MaterialTheme.shapes.small,
                         trailingIcon = {
-                            IconButton(onClick = { clipboard.getText()?.text?.let { link = it.trim() } }) {
+                            IconButton(onClick = { clipboard.getText()?.text?.let { link = extractUrl(it) ?: it.trim() } }, enabled = !busy) {
                                 Icon(Icons.Filled.ContentPaste, contentDescription = "Paste")
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    Spacer(Modifier.height(10.dp))
-                    PhaseNote("AI extraction from links arrives in Phase 2. For now you can keep the link as a draft and fill it in yourself.")
-                    Spacer(Modifier.height(10.dp))
-                    Button(
-                        enabled = url != null,
-                        onClick = {
-                            val u = url ?: return@Button
-                            scope.launch {
-                                val id = container.recipes.save(
-                                    Recipe(
-                                        title = "Recipe from ${hostLabel(u)}",
-                                        origin = Origin.URL,
-                                        sources = listOf(SourceLink(hostLabel(u), u)),
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Button(enabled = url != null && hasAnyKey && !busy, onClick = { url?.let { imports.importLink(it) } }) {
+                            Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Import with AI")
+                        }
+                        Spacer(Modifier.weight(1f))
+                        TextButton(
+                            enabled = url != null && !busy,
+                            onClick = {
+                                val u = url ?: return@TextButton
+                                scope.launch {
+                                    val id = container.recipes.save(
+                                        Recipe(title = "Recipe from ${hostLabel(u)}", origin = Origin.URL, sources = listOf(SourceLink(hostLabel(u), u)))
                                     )
-                                )
-                                link = ""
-                                openRecipe(id)
-                            }
-                        },
-                    ) { Text("Save link as draft") }
+                                    link = ""
+                                    openRecipe(id)
+                                }
+                            },
+                        ) { Text("Save as draft") }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "YouTube videos are watched by Gemini. TikTok, Instagram and Facebook only share the caption with apps.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
 
+        // Text
         item {
-            MethodCard(Icons.Outlined.EditNote, "Write it yourself", "Type a recipe with ingredients, steps and a photo.", enabled = true, onClick = writeManually)
+            Card(
+                onClick = { if (!textOpen) textOpen = true },
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    MethodTitle(Icons.Outlined.Notes, "Text or transcript", "Paste notes, a caption, a description or a transcript")
+                    AnimatedVisibility(visible = textOpen) {
+                        Column {
+                            Spacer(Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = text,
+                                onValueChange = { text = it },
+                                placeholder = { Text("e.g. 2 eggs, 200 g flour, a splash of milk… whisk, rest 10 min, fry in butter") },
+                                minLines = 5,
+                                maxLines = 14,
+                                enabled = !busy,
+                                shape = MaterialTheme.shapes.small,
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Button(enabled = text.trim().length >= 20 && hasAnyKey && !busy, onClick = { imports.importText(text) }) {
+                                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Create recipe")
+                                }
+                                Spacer(Modifier.weight(1f))
+                                TextButton(enabled = !busy, onClick = { clipboard.getText()?.text?.let { text = it } }) { Text("Paste") }
+                            }
+                        }
+                    }
+                }
+            }
         }
-        item { MethodCard(Icons.Outlined.Notes, "Text or transcript", "Paste notes, a caption or a transcript.", phase = 2) }
+
+        item { MethodCard(Icons.Outlined.EditNote, "Write it yourself", "Type a recipe with ingredients, steps and a photo.", enabled = !busy, onClick = writeManually) }
         item { MethodCard(Icons.Outlined.Image, "Photos & screenshots", "Dish photos or screenshots of a recipe.", phase = 3) }
         item { MethodCard(Icons.Outlined.Videocam, "Video from your phone", "Frames, speech and subtitles are analysed.", phase = 3) }
         item { MethodCard(Icons.Outlined.Layers, "Combine sources", "Mix a video, screenshots and notes into one recipe.", phase = 3) }
+    }
+}
+
+@Composable
+private fun StatusCard(state: ImportState, onRetryDismiss: () -> Unit, onCancel: () -> Unit, onOpen: (Long) -> Unit) {
+    when (state) {
+        ImportState.Idle -> Unit
+        is ImportState.Running -> Card(
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        ) {
+            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(state.stage.label, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text(
+                        "You can leave this screen; the recipe opens when it's ready.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                }
+                TextButton(onClick = onCancel) { Text("Cancel") }
+            }
+        }
+        is ImportState.Failed -> Card(
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+        ) {
+            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
+                Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Import didn't work", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onErrorContainer)
+                    Text(state.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+                }
+                TextButton(onClick = onRetryDismiss) { Text("OK") }
+            }
+        }
+        is ImportState.Done -> if (state.notice != null) {
+            Card(
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+            ) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
+                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = LocalCertaintyColors.current.confirmed)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Recipe imported", style = MaterialTheme.typography.titleSmall)
+                        Text(state.notice, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row {
+                            TextButton(onClick = { onOpen(state.recipeId) }) { Text("Open") }
+                            TextButton(onClick = onRetryDismiss) { Text("OK") }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -206,7 +342,7 @@ private fun MethodCard(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f).alpha(if (enabled) 1f else 0.55f)) { MethodTitle(icon, title, subtitle) }
+            Box(Modifier.weight(1f).alpha(if (enabled || phase == null) 1f else 0.55f)) { MethodTitle(icon, title, subtitle) }
             if (phase != null) {
                 Text(
                     "Phase $phase",
@@ -218,15 +354,6 @@ private fun MethodCard(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun PhaseNote(text: String) {
-    Row(verticalAlignment = Alignment.Top) {
-        Icon(Icons.Outlined.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.tertiary)
-        Spacer(Modifier.width(6.dp))
-        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
